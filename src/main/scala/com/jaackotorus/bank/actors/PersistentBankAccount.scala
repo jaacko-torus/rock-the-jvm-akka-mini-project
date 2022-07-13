@@ -1,11 +1,9 @@
 package com.jaackotorus.bank
 package actors
 
-import akka.actor.typed.ActorRef
-import akka.persistence.typed.scaladsl.Effect
-import akka.actor.typed.Behavior
-import akka.persistence.typed.scaladsl.EventSourcedBehavior
+import akka.actor.typed.{ActorRef, Behavior}
 import akka.persistence.typed.PersistenceId
+import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 
 object PersistentBankAccount {
   // commands = messages
@@ -37,17 +35,15 @@ object PersistentBankAccount {
     case BankAccountCreatedResponse(id: String)
     case BankAccountBalanceUpdatedResponse(bankAccount: Option[BankAccount])
     case GetBankAccountResponse(bankAccount: Option[BankAccount])
-}
 
-class PersistentBankAccount {
-  import PersistentBankAccount.{BankAccount, Command, Event, Response}
   import Command.*
   import Event.*
   import Response.*
+
   // command handler = message handler => persist an event
   // event handler => update state
   // state
-  val commandHandler: (BankAccount, Command) => Effect[Event, BankAccount] = (state, command) =>
+  def commandHandler(state: BankAccount, command: Command): Effect[Event, BankAccount] =
     command match {
       case CreateBankAccount(user, currency, initialBalance, bank) => {
         val id = state.id
@@ -67,16 +63,13 @@ class PersistentBankAccount {
             .persist(BalanceUpdated(newBalance))
             .thenReply(bank)(newState => BankAccountBalanceUpdatedResponse(Some(newState)))
       }
-      case GetBankAccount(_, bank) => {
-        Effect.reply(bank)(GetBankAccountResponse(Some(state)))
-      }
+      case GetBankAccount(_, bank) => { Effect.reply(bank)(GetBankAccountResponse(Some(state))) }
     }
 
-  val eventHandler: (BankAccount, Event) => BankAccount = (state, event) =>
-    event match {
-      case BankAccountCreated(bankAccount) => bankAccount
-      case BalanceUpdated(amount)          => state.copy(balance = state.balance + amount)
-    }
+  def eventHandler(state: BankAccount, event: Event): BankAccount = event match {
+    case BankAccountCreated(bankAccount) => bankAccount
+    case BalanceUpdated(amount)          => state.copy(balance = state.balance + amount)
+  }
 
   def apply(id: String): Behavior[Command] = EventSourcedBehavior[Command, Event, BankAccount](
     persistenceId = PersistenceId.ofUniqueId(id),
